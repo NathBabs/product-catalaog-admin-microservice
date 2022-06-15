@@ -1,7 +1,14 @@
 import prisma from '../../client';
 import { customError } from '../utils/CustomError';
-import  Product  from '../../client';
 import { Prisma } from '@prisma/client';
+import { MessageBroker } from '../broker/rabbitmq';
+
+const message = new MessageBroker();
+let broker: MessageBroker;
+(async () => {
+  broker = await message.init();
+})();
+
 
 export const retrieveProducts = async () => {
   try {
@@ -28,6 +35,8 @@ export const insertProduct = async (product: Prisma.ProductCreateInput) => {
         ...product,
       },
     });
+    broker.sendMessage('product-created', JSON.stringify(newProduct));
+
 
     return Promise.resolve({
       statusCode: 200,
@@ -95,6 +104,9 @@ export const changeProduct = async (id: string, product: Prisma.ProductUpdateInp
       },
     });
 
+    // send updated product to queue
+    broker.sendMessage('product-updated', JSON.stringify(updatedProduct));
+
     return Promise.resolve({
       statusCode: 200,
       data: updatedProduct,
@@ -132,6 +144,9 @@ export const removeProduct = async (id: string) => {
         id: Number(id),
       },
     });
+
+    // send deleted product id to queue
+    broker.sendMessage('product-deleted', JSON.stringify(deletedProduct.id));
 
     return Promise.resolve({
       statusCode: 200,
